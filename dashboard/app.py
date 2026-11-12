@@ -5,6 +5,7 @@ import plotly.express as px
 
 # Page title
 st.title("Security Log Analysis Dashboard")
+st.markdown("### SOC Analyst Monitoring Dashboard")
 
 # Load CSV
 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -12,8 +13,16 @@ csv_path = os.path.join(base_dir, "logs", "sample_logs.csv")
 
 df = pd.read_csv(csv_path)
 
-# Dashboard metrics
+# Sidebar
+st.sidebar.success("System Status: Online")
+st.sidebar.title("SOC Dashboard Filters")
 
+selected_event = st.sidebar.selectbox(
+    "Select Event Type",
+    ["All"] + list(df["event"].unique())
+)
+
+# Dashboard Metrics
 total_events = len(df)
 
 failed_logins_count = len(
@@ -34,8 +43,7 @@ suspicious_ips = failed_counts[
 
 alert_count = len(suspicious_ips)
 
-# Display metrics
-
+# KPI Cards
 col1, col2, col3, col4 = st.columns(4)
 
 col1.metric(
@@ -59,7 +67,6 @@ col4.metric(
 )
 
 # Failed Login Chart
-
 failed_by_ip = (
     df[df["status"] == "Failed"]["ip"]
     .value_counts()
@@ -79,10 +86,12 @@ fig = px.bar(
     color="Failed Attempts"
 )
 
-st.plotly_chart(fig, use_container_width=True)
+st.plotly_chart(
+    fig,
+    use_container_width=True
+)
 
-# Event Distribution Chart
-
+# Event Distribution Pie Chart
 events = df["event"].value_counts().reset_index()
 
 events.columns = [
@@ -102,25 +111,23 @@ st.plotly_chart(
     use_container_width=True
 )
 
-# Display logs
-st.subheader("Security Logs")
-st.dataframe(df)
+# Filter Logs
+if selected_event != "All":
+    filtered_df = df[df["event"] == selected_event]
+else:
+    filtered_df = df
 
-# Failed login detection
+# Security Logs
+st.subheader("Security Logs")
+st.dataframe(filtered_df)
+
+# Failed Login Attempts
 failed_logins = df[df["status"] == "Failed"]
 
 st.subheader("Failed Login Attempts")
 st.dataframe(failed_logins)
 
-# Brute-force detection
-failed_counts = (
-    df[df["status"] == "Failed"]
-    .groupby("ip")
-    .size()
-)
-
-suspicious_ips = failed_counts[failed_counts >= 3]
-
+# Security Alerts
 st.subheader("Security Alerts")
 
 if suspicious_ips.empty:
@@ -130,3 +137,25 @@ else:
         st.error(
             f"ALERT: {ip} generated {count} failed login attempts"
         )
+
+# Generate Incident Report
+report_path = os.path.join(
+    base_dir,
+    "reports",
+    "report.txt"
+)
+
+with open(report_path, "w") as report:
+
+    report.write("Security Incident Report\n")
+    report.write("=" * 30 + "\n\n")
+
+    if suspicious_ips.empty:
+        report.write("No suspicious activity detected.\n")
+    else:
+        for ip, count in suspicious_ips.items():
+
+            report.write(
+                f"ALERT: {ip} generated "
+                f"{count} failed login attempts\n"
+            )
